@@ -17,6 +17,9 @@ import geotiler
 import gpxpy
 import numpy
 
+import geo
+import gfx
+
 
 def align_tracks(track1, track2, gap_penalty):
     """ Needleman-Wunsch algorithm adapted for gps tracks. """
@@ -84,7 +87,7 @@ def draw_alignment(track1, track2, bounds):
     a1_l = len(track1)
     a2_l = len(track2)
     assert a1_l == a2_l
-    p_radius = 3
+    p_radius = 2
     for i in range(0, a1_l):
         if a1[i] is not None and a2[i] is not None:
             cr.set_source_rgba(0.2, 0.7, 1.0, 1.0)
@@ -108,47 +111,6 @@ def draw_alignment(track1, track2, bounds):
     return surface
 
 
-def draw_track(track, bounds):
-    """ Draws the given tracks with the given bounds onto a cairo surface. """
-
-    _log.info("Drawing track")
-
-    mm = geotiler.Map(extent=bounds, zoom=14)
-    width, height = mm.size
-    image = geotiler.render_map(mm)
-
-    # create cairo surface
-    buff = bytearray(image.convert('RGBA').tobytes('raw', 'BGRA'))
-    surface = cairo.ImageSurface.create_for_data(
-        buff, cairo.FORMAT_ARGB32, width, height)
-    cr = cairo.Context(surface)
-
-    p_radius = 3
-    for p in track:
-        cr.set_source_rgba(0.0, 0.0, 1.0, 1.0)
-        a1_x, a1_y = mm.rev_geocode((p.longitude, p.latitude))
-        cr.arc(a1_x, a1_y, p_radius, 0, 2 * math.pi)
-        cr.fill()
-    return surface
-
-
-def add_padding(bbox, padding_pct):
-    """ Add the given percentage padding to the given bounding box. """
-
-    min_lat = bbox[1]
-    max_lat = bbox[3]
-    min_lon = bbox[0]
-    max_lon = bbox[2]
-
-    lat_pad = ((max_lat - min_lat) / 100) * padding_pct
-    lon_pad = ((max_lon - min_lon) / 100) * padding_pct
-
-    bbox = (min_lon - lon_pad, min_lat - lat_pad,
-            max_lon + lon_pad, max_lat + lat_pad)
-
-    return bbox
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('gpx_file1', type=argparse.FileType('r'))
@@ -156,6 +118,8 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--cutoff', type=int, default=10,
                         help="cutoff distance in meters for similar points")
     parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument('-e', '--even', type=int,
+                        help="evenly distribute points in meters")
     parser.add_argument('-o', '--output-file', default="alignment.png",
                         help="output filename")
     parser.add_argument('-s', '--separate_tracks', action='store_true',
@@ -170,32 +134,38 @@ if __name__ == "__main__":
     gpx2 = gpxpy.parse(args.gpx_file2)
     gap_penalty = -args.cutoff
 
-    # Join all the points from all segments for the track into a single list and
-    # run the alignment
+    # Join all the points from all segments for the track into a single list
     gpx1_points = [p for s in gpx1.tracks[0].segments for p in s.points]
     gpx2_points = [p for s in gpx2.tracks[0].segments for p in s.points]
+
+    # Evenly distribute the points
+    if args.even:
+        gpx1_points = geo.interpolate_distance(gpx1_points, args.even)
+        gpx2_points = geo.interpolate_distance(gpx2_points, args.even)
+
+    # Run the alignment
     a1, a2 = align_tracks(gpx1_points, gpx2_points, gap_penalty)
 
     # Calculate map bounding box with padding
     padding_pct = 10
     bounds1 = gpx1.get_bounds()
     bounds2 = gpx2.get_bounds()
-    bbox1 = add_padding((bounds1.min_longitude, bounds1.min_latitude,
-                         bounds1.max_longitude, bounds1.max_latitude), 10)
-    bbox2 = add_padding((bounds2.min_longitude, bounds2.min_latitude,
-                         bounds2.max_longitude, bounds2.max_latitude), 10)
+    bbox1 = gfx.add_padding((bounds1.min_longitude, bounds1.min_latitude,
+                             bounds1.max_longitude, bounds1.max_latitude), 10)
+    bbox2 = gfx.add_padding((bounds2.min_longitude, bounds2.min_latitude,
+                             bounds2.max_longitude, bounds2.max_latitude), 10)
     bbox = (min(bbox1[0], bbox2[0]), min(bbox1[1], bbox2[1]),
             max(bbox1[2], bbox2[2]), max(bbox1[3], bbox2[3]))
 
     # Draw tracks and alignment
     if args.separate_tracks:
-        gpx1_surface = draw_track(gpx1_points, bbox1)
+        gpx1_surface = gfx.draw_track(gpx1_points, bbox1)
         gpx1_img_filename = "{}.png".format(
             os.path.basename(os.path.splitext(args.gpx_file1.name)[0]))
         _log.info("Saving original track to '{}'".format(gpx1_img_filename))
         gpx1_surface.write_to_png(gpx1_img_filename)
 
-        gpx2_surface = draw_track(gpx2_points, bbox2)
+        gpx2_surface = gfx.draw_track(gpx2_points, bbox2)
         gpx2_img_filename = "{}.png".format(
             os.path.basename(os.path.splitext(args.gpx_file2.name)[0]))
         _log.info("Saving original track to '{}'".format(gpx2_img_filename))

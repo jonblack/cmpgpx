@@ -15,8 +15,21 @@ to run the script:
 
 # Information
 
-More information about the implementation can be found on my blog in the post
-[How to compare GPS tracks][2].
+More information about the implementation can be found on my blog in the posts:
+
+* [How to compare GPS tracks][2]
+* [How to distribute GPS points evenly][3]
+
+# Tests
+
+The tests can be run with the following command:
+
+    venv/bin/nosetests
+
+# Scripts
+
+* `cmpgpx.py` performs and plots the alignment
+* `dist.py` performs and plots only the distribution of points
 
 # Example
 
@@ -28,6 +41,10 @@ and orange indicate differences.
 
 ![](examples/thun_even.png)
 
+This was created with the following command:
+
+    cmpgpx.py -e 20 examples/thun_1_raw.gpx examples/thun_2_raw.gpx
+
 # License
 
 This is free and unencumbered software released into the public domain. See
@@ -36,3 +53,4 @@ UNLICENSE for more information.
 
 [1]: https://en.wikipedia.org/wiki/Needleman-Wunsch_algorithm
 [2]: http://humblecoder.com/how-to-compare-gps-tracks
+[3]: http://humblecoder.com/how-to-distribute-gps-points-evenly
