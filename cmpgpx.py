@@ -115,6 +115,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('gpx_file1', type=argparse.FileType('r'))
     parser.add_argument('gpx_file2', type=argparse.FileType('r'))
+    parser.add_argument('-a', '--avoid_reverse', action='store_true',
+                        help="avoid reversal of track")
     parser.add_argument('-c', '--cutoff', type=int, default=10,
                         help="cutoff distance in meters for similar points")
     parser.add_argument('-d', '--debug', action='store_true')
@@ -138,6 +140,26 @@ if __name__ == "__main__":
     gpx1_points = [p for s in gpx1.tracks[0].segments for p in s.points]
     gpx2_points = [p for s in gpx2.tracks[0].segments for p in s.points]
 
+    # Determines whether gpx1_points is a loop (tolerance 100m) and rotates it to start of gpx2_points if so
+    # If a loop, reverses the loop if needed
+    # If not a loop, determines whether one track needs to be reversed
+    # Avoids reversal if -a specified
+    if geo.is_loop(gpx1_points, 100):
+        _log.info("Rotating loop")
+        gpx1_points = geo.rotate_loop(gpx1_points, gpx2_points[0])
+        if gpxpy.geo.distance(gpx1_points[1].latitude, gpx1_points[1].longitude, None,
+                            gpx2_points[1].latitude, gpx2_points[1].longitude, None) > gpxpy.geo.distance(gpx1_points[1].latitude, gpx1_points[1].longitude, None,
+                            gpx2_points[-1].latitude, gpx2_points[-1].longitude, None):
+            if args.avoid_reverse == False:
+                _log.info("Reversing track")
+                gpx1_points.reverse()
+    elif gpxpy.geo.distance(gpx1_points[0].latitude, gpx1_points[0].longitude, None,
+                          gpx2_points[0].latitude, gpx2_points[0].longitude, None) > gpxpy.geo.distance(gpx1_points[0].latitude, gpx1_points[0].longitude, None,
+                          gpx2_points[-1].latitude, gpx2_points[-1].longitude, None):
+        if args.avoid_reverse == False:
+            _log.info("Reversing track")
+            gpx1_points.reverse()
+    
     # Evenly distribute the points
     if args.even:
         gpx1_points = geo.interpolate_distance(gpx1_points, args.even)
