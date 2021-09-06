@@ -20,6 +20,24 @@ import numpy
 import geo
 import gfx
 
+def reversal_detect(track1, track2, num_points):
+    """ Tests whether two tracks are likely to be a reversal of each other or not """
+
+    # Ensure num_points is no greater than the length of either track
+    num_points = min(num_points, len(track1), len(track2))
+
+    def displacement(track1, track2, index1, index2):
+        """ Returns distance between track1[index1] and track2[index2] """
+        return gpxpy.geo.distance(track1[index1].latitude, track1[index1].longitude, None, track2[index2].latitude, track2[index2].longitude, None)
+
+    sum_displacement_regular = 0
+    sum_displacement_opposite = 0
+
+    for i in range(num_points):
+        sum_displacement_regular += displacement(track1, track2, i, i)
+        sum_displacement_opposite += displacement(track1, track2, i, -i)
+
+    return False if sum_displacement_regular <= sum_displacement_opposite else True
 
 def align_tracks(track1, track2, gap_penalty):
     """ Needleman-Wunsch algorithm adapted for gps tracks. """
@@ -115,6 +133,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('gpx_file1', type=argparse.FileType('r'))
     parser.add_argument('gpx_file2', type=argparse.FileType('r'))
+    parser.add_argument('-r', '--override_reverse', action='store_true',
+                        help="override reversal detection")
     parser.add_argument('-c', '--cutoff', type=int, default=10,
                         help="cutoff distance in meters for similar points")
     parser.add_argument('-d', '--debug', action='store_true')
@@ -137,6 +157,34 @@ if __name__ == "__main__":
     # Join all the points from all segments for the track into a single list
     gpx1_points = [p for s in gpx1.tracks[0].segments for p in s.points]
     gpx2_points = [p for s in gpx2.tracks[0].segments for p in s.points]
+
+    # Loop handling, including detecting whether reversal of a track is required.
+    # Argument -r overrides detected reversals or forces them if requred
+    if geo.is_loop(gpx1_points, 100):
+        # gpx1 is a loop
+        _log.info(f"Rotating loop in {args.gpx_file1.name}")
+        gpx1_points = geo.rotate_loop(gpx1_points, gpx2_points[0])
+        if reversal_detect(gpx1_points, gpx2_points, 10):
+            _log.info("Detected a track that needs to be reversed")
+            if args.override_reverse == False:
+                _log.info(f"Reversing track in {args.gpx_file1.name}")
+                gpx1_points.reverse()
+            else:
+                _log.info("Reversal overriden")
+        else:
+      	    if args.override_reverse == True:
+      	        _log.info(f"Reversal forced. Reversing track in {args.gpx_file1.name}")
+      	        gpx1_points.reverse()
+    else:
+        # gpx1 is not a loop
+        if reversal_detect(gpx1_points, gpx2_points, 10):
+            _log.info("Detected a track that needs to be reversed")
+            if args.override_reverse == False:
+                _log.info(f"Reversing track in {args.gpx_file1.name}")
+                gpx1_points.reverse()
+        else:
+            _log.info(f"Reversal forced. Reversing track in {args.gpx_file1.name}")
+            gpx1_points.reverse()
 
     # Evenly distribute the points
     if args.even:

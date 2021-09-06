@@ -7,6 +7,34 @@ import gpxpy
 _log = logging.getLogger(__name__)
 
 
+def is_loop(points, tolerance):
+    """
+    Determines whether a set of points forms a loop, to a given tolerance
+    """
+
+    start = points[0]
+    finish = points[-1]
+    dist = gpxpy.geo.distance(start.latitude, start.longitude, None,
+                    finish.latitude, finish.longitude, None)
+    return True if dist <= tolerance else False
+
+def rotate_loop(points, start):
+    """
+    Rotates a loop so that the start is the closest point to given start location
+    """
+
+    min_d = gpxpy.geo.distance(points[0].latitude, points[0].longitude, None,
+                     start.latitude, start.longitude, None)
+    closest = 0
+    for p in range(0, len(points)):
+        d = gpxpy.geo.distance(points[p].latitude, points[p].longitude, None,
+                     start.latitude, start.longitude, None)
+        if d < min_d:
+            min_d = d
+            closest = p
+
+    return points[closest:] + points[:closest]
+
 def bearing(point1, point2):
     """
     Calculates the initial bearing between point1 and point2 relative to north
