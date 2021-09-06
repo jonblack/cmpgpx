@@ -21,7 +21,7 @@ import geo
 import gfx
 
 def reversal_detect(track1, track2, num_points):
-    """ Tests whether two tracks are likely to be a reversal of each other or not"""
+    """ Tests whether two tracks are likely to be a reversal of each other or not """
 
     # Ensure num_points is no greater than the length of either track
     num_points = min(num_points, len(track1), len(track2))
@@ -158,10 +158,8 @@ if __name__ == "__main__":
     gpx1_points = [p for s in gpx1.tracks[0].segments for p in s.points]
     gpx2_points = [p for s in gpx2.tracks[0].segments for p in s.points]
 
-    # Determines whether gpx1_points is a loop (tolerance 100m) and rotates it to start of gpx2_points if so
-    # If a loop, reverses the loop if needed
-    # If not a loop, determines whether one track needs to be reversed
-    # Avoids reversal if -a specified
+    # Loop handling, including detecting whether reversal of a track is required.
+    # Argument -r overrides detected reversals or forces them if requred
     if geo.is_loop(gpx1_points, 100):
         # gpx1 is a loop
         _log.info(f"Rotating loop in {args.gpx_file1.name}")
